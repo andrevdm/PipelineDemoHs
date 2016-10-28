@@ -6,20 +6,16 @@ module Main where
 
 import Protolude
 import Data.Map (Map)
-import qualified Data.Map as Map
 import qualified System.IO as IO
 import qualified Data.List as Lst
 import Control.Concurrent.MVar
 
 -- | A raised event
-data ValueEvent = ValueEvent { evtValue :: Double
-                             }
-                deriving (Show, Eq)
+data ValueEvent = ValueEvent { evtValue :: Double } deriving (Show, Eq)
 
 -- | State of the pipeline
 data PipelineState = PipelineState { stateValueText :: Text
                                    , stateHistory :: [ValueEvent]
-                                   , stateCustom :: Map Text Text
                                    }
                      deriving (Show, Eq)
 
@@ -28,8 +24,7 @@ type Step = PipelineState -> ValueEvent -> PipelineState
 
 -- | Step that does nothing
 nopStep :: Step
-nopStep state evt = 
-  state
+nopStep state evt = state
 
 -- | Step that stores history up to maxDepth. Notice that this needs to be curried to be a valid Step
 addHistoryStep :: Int -> Step
@@ -39,7 +34,7 @@ addHistoryStep maxDepth state evt =
 -- | Step that calculates an average of the historic values
 avgOverHistoryStep :: Step
 avgOverHistoryStep state evt =
-  state {stateValueText = show $ avg $ evtValue <$> (stateHistory state)}
+  state {stateValueText = show . avg $ evtValue <$> stateHistory state}
   where
     avg l = sum l / fromIntegral (length l)
   
@@ -47,7 +42,7 @@ avgOverHistoryStep state evt =
 createPipeline :: Text -> [Step] -> MVar PipelineState -> IO (MVar ValueEvent)
 createPipeline name steps spy = do
   mv <- newEmptyMVar 
-  forkIO $ runPipeline mv PipelineState{ stateValueText = "", stateHistory = [], stateCustom = Map.empty }
+  forkIO $ runPipeline mv PipelineState{ stateValueText = "", stateHistory = [] }
   pure mv
 
   where
@@ -61,7 +56,6 @@ createPipeline name steps spy = do
       putMVar spy next
       -- Wait for next value
       runPipeline mv next
-
 
 main :: IO ()
 main = do
@@ -77,5 +71,3 @@ main = do
     case (readMaybe t ::Maybe Double) of
       Nothing -> putText "invalid value"
       Just d -> putMVar mv1 ValueEvent{ evtValue = d }
-  
-  putText ""
